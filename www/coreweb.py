@@ -7,7 +7,7 @@ from urllib import parse
 
 from aiohttp import web
 
-from aips import APIError
+from apis import APIError
 
 def get(path):
     '''
@@ -58,10 +58,10 @@ def has_named_kw_args(fn):
             return True
 
 
-def has_var_kw_args(fn):
+def has_var_kw_arg(fn):
     params = inspect.signature(fn).parameters
     for name, param in params.items():
-        if param.kind == inspect.Parameter.KEYWORD_ONLY:
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
             return True
 
 
@@ -84,35 +84,38 @@ class RequestHandler(object):
         self._app = app
         self._func = fn
         self._has_request_arg = has_request_arg(fn)
-        self._has_var_kw_arg = has_var_kw_args(fn)
+        self._has_var_kw_arg = has_var_kw_arg(fn)
         self._has_named_kw_args = has_named_kw_args(fn)
         self._named_kw_args = get_named_kw_args(fn)
         self._required_kw_args = get_required_kw_args(fn)
 
     async def __call__(self, request):
         kw = None
-        if self._has_var_kw_arg or self._has_named_kw_args or self._required_kw_args:
+        logging.info('RequestHandler request.method:%s' % request.method)
+        if self._has_var_kw_arg or self._has_named_kw_args or self._has_request_arg:
             if request.method == 'POST':
                 if not request.content_type:
                     return web.HTTPBadRequest('Missing Content-Type')
                 ct = request.content_type.lower()
-                if ct.startwith('application/json'):
+                if ct.startswith('application/json'):
                     params = await request.json
                     if not isinstance(params, dict):
                         return web.HTTPBadRequest('JSON body must be object ')
                     kw = params
-                elif ct.startwith('application/x-www-form-urlencoded') or ct.startwith('multipart/form-data'):
+                elif ct.startswith('application/x-www-form-urlencoded') or ct.startswith('multipart/form-data'):
                     params = await request.post
                     kw = dict(**params)
                 else:
                     return web.HTTPBadRequest('Unsupported Content_Type:%s' % request.content_type)
             if request.method == 'GET':
                 qs = request.query_string
+                logging.info('RequestHandler GET qs:%s' % qs)
                 if qs:
                     kw = dict()
                     for k,v in parse.parse_qs(qs, True).items():
                         kw[k] = v[0]
 
+        logging.info('RequestHandler  kw args:%s %s' % (str(kw), kw is None))
         if kw is None:
             kw = dict(**request.match_info)
         else:
@@ -161,7 +164,7 @@ def add_route(app, fn):
     app.router.add_route(method, path, RequestHandler(app, fn))
 
 
-def add_routers(app, module_name):
+def add_routes(app, module_name):
     n = module_name.rfind('.')
     if n == (-1):
         mod = __import__(module_name, globals(), locals())
@@ -169,7 +172,7 @@ def add_routers(app, module_name):
         name = module_name[n+1:]
         mod = getattr(__import__(module_name[:n], globals(), locals(), [name]), name)
     for attr in dir(mod):
-        if attr.startwith('_'):
+        if attr.startswith('_'):
             continue
         fn = getattr(mod, attr)
         if callable(fn):

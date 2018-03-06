@@ -25,7 +25,7 @@ def init_jinja2(app, **kw):
     )
     path = kw.get('path', None)
     if path is None:
-        path = os.path.join(os.paht.dirname(os.path.abspath(__file__)), 'templates')
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
         logging.info('set jinja2 template path:%s' % path)
         env = Environment(loader = FileSystemLoader(path), **options)
         filters = kw.get('filters', None)
@@ -45,10 +45,10 @@ async def logger_factory(app, handler):
 async def data_factory(app, handler):
     async def parse_data(request):
         if request.method == 'POST':
-            if request.content_type.startwith('application/json'):
+            if request.content_type.startswith('application/json'):
                 request.__data__ = await request.json()
                 logging.info('request json:%s' % str(request.__data__))
-            elif request.content_type.startwith('application/x-www-form-urlencoded'):
+            elif request.content_type.startswith('application/x-www-form-urlencoded'):
                 request.__data__ = await request.post()
                 logging.info('request form:%s' % str(request.__data__))
         return (await handler(request))
@@ -58,7 +58,8 @@ async def data_factory(app, handler):
 async def response_factory(app, handler):
     async def response(request):
         logging.info('Response handler')
-        r = await handler(reuqest)
+        r = await handler(request)
+        logging.info('Response handler r:%s' % r)
         if isinstance(r, web.StreamResponse):
             return r
         if isinstance(r, bytes):
@@ -66,7 +67,7 @@ async def response_factory(app, handler):
             resp.content_type = 'application/octet-stream'
             return resp
         if isinstance(r, str):
-            if r.startwith('redirect:'):
+            if r.startswith('redirect:'):
                 return web.HTTPFound(r[9:])
             resp = web.Response(body=r.encode('utf-8'))
             resp.content_type = 'text/html;charset=utf-8'
@@ -78,7 +79,7 @@ async def response_factory(app, handler):
                 resp.content_type = 'application/json;charset=utf-8'
                 return resp
             else:
-                resp = web.Response(body=app['__template__'].get_template(template).render(**r).encode('utf-8'))
+                resp = web.Response(body=app['__templating__'].get_template(template).render(**r).encode('utf-8'))
                 resp.content_type='text/html;charset=utf-8'
                 return resp
         if isinstance(r, int) and r >= 100 and r<600:
@@ -119,8 +120,8 @@ def index(request):
 #    return srv
 
 async def init(loop):
-    await orm.create_pool(loop=loop, host='127.0.0.1', port='3306', user='root', passwor='root', db='py3_web1_app_db')
-    app = web.Application(loop=loop, middleware=[logger_factory, response_factory])
+    await orm.create_pool(loop=loop, host='127.0.0.1', port=3306, user='root', password='root', db='py3_web1_app_db')
+    app = web.Application(loop=loop, middlewares=[logger_factory, response_factory])
     init_jinja2(app, filters=dict(datetime=datetime_filter))
     add_routes(app, 'handlers')
     add_static(app)
