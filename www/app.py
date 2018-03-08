@@ -37,7 +37,7 @@ def init_jinja2(app, **kw):
 
 async def logger_factory(app, handler):
     async def logger(request):
-        logging.info('Request:%s %s' % (request.method, request.path))
+        logging.info('logger_factory Request:%s %s' % (request.method, request.path))
         return (await handler(request))
     return logger
 
@@ -57,9 +57,9 @@ async def data_factory(app, handler):
 
 async def response_factory(app, handler):
     async def response(request):
-        logging.info('Response handler')
+        logging.info('response_factory Response handler')
         r = await handler(request)
-        logging.info('Response handler r:%s' % r)
+        logging.info('response_factory Response handler r:%s' % r)
         if isinstance(r, web.StreamResponse):
             return r
         if isinstance(r, bytes):

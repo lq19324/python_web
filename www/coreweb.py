@@ -92,7 +92,7 @@ class RequestHandler(object):
     async def __call__(self, request):
         kw = None
         logging.info('RequestHandler request.method:%s' % request.method)
-        if self._has_var_kw_arg or self._has_named_kw_args or self._has_request_arg:
+        if self._has_var_kw_arg or self._has_named_kw_args or self._required_kw_args:
             if request.method == 'POST':
                 if not request.content_type:
                     return web.HTTPBadRequest('Missing Content-Type')
@@ -115,7 +115,7 @@ class RequestHandler(object):
                     for k,v in parse.parse_qs(qs, True).items():
                         kw[k] = v[0]
 
-        logging.info('RequestHandler  kw args:%s %s' % (str(kw), kw is None))
+        logging.info('RequestHandler  kw args:%s %s' % str(kw))
         if kw is None:
             kw = dict(**request.match_info)
         else:
@@ -126,24 +126,24 @@ class RequestHandler(object):
                     if name in kw:
                         copy[name] = kw[name]
                 kw = copy
-                # check named kw:
-                for k, v in request.match_info.items():
-                    if k in kw:
-                        logging.warning('Duplicate arg name in named arg and kw args:%s' % k)
-                    kw[k] = v
-            if self._has_request_arg:
-                kw['request'] = request
-            #check required kw:
-            if self._required_kw_args:
-                for name in self._required_kw_args:
-                    if not name in kw:
-                        return web.HTTPBadRequest('Missing argement:%s' % name)
-            logging.info('call with args:%s' % str(kw))
-            try:
-                r = await self._func(**kw)
-                return r
-            except APIError as e:
-                return dict(error = e.error, data = e.data, message = e.message)
+            # check named kw:
+            for k, v in request.match_info.items():
+                if k in kw:
+                    logging.warning('Duplicate arg name in named arg and kw args:%s' % k)
+                kw[k] = v
+        if self._has_request_arg:
+            kw['request'] = request
+        #check required kw:
+        if self._required_kw_args:
+            for name in self._required_kw_args:
+                if not name in kw:
+                    return web.HTTPBadRequest('Missing argement:%s' % name)
+        logging.info('call with args:%s' % str(kw))
+        try:
+            r = await self._func(**kw)
+            return r
+        except APIError as e:
+            return dict(error = e.error, data = e.data, message = e.message)
 
 
 
